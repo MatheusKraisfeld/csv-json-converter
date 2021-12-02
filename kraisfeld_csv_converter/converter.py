@@ -54,44 +54,62 @@ def converter(input: str = "./", output: str = "./", delimiter: str = ",", prefi
             raise TypeError("Not a valid path of file name.")
 
     data = read_csv_file(source=input_path, delimiter=delimiter)
-    save_to_json_files(csvs=data, output_path=output_path, prefix=prefix)
+    # save_to_json_files(csvs=data, output_path=output_path, prefix=prefix)
 
 
-def read_csv_file(source: Path, delimiter: str = ",") -> tuple:
+def read_csv_file(source: Path, delimiter: str = ",") -> list:
     """Load a single csv file or all files withing a directory.
 
     Args:
         source (Path): Path for a single file or directory with files.
-        delimiter (str, optional): Separator columns in the csv's. Defaults to ",".
+        delimiter (str, optional): Separator columns in the csv`s. Defaults to ','.
 
     Returns:
-        tuple: All dataframes loaded from the given source path.
+        list[list[str]]: All dataframes loaded from the given source path.
     """
-    if source.is_file():
-        logger.info("Reading csv file %s", source)
-        return (pd.read_csv(source, delimiter=delimiter, index_col=False),)
-
-    logger.info("Reading all files within the directory: %s", source)
-    data = list()
-    for i in source.iterdir():
-        data.append(pd.read_csv(file_path_or_buffer=i, delimiter=delimiter, index_col=False))
-
-    return tuple(data)
+    with source.open(mode="r") as file:
+        data = file.readlines()
+    parsed_data = [line.strip().split(delimiter) for line in data]
+    print(parsed_data)
+    return parsed_data
 
 
-def save_to_json_files(csvs: tuple, output_path: Path, prefix: str = None):
-    """Save dataframes to disk.
+def parse_csv_to_json(data: list[list[str]]) -> list:
+    """Converte lista de dados para formato de lista de dicionario"""
+    columns = data[0]
+    lines = data[1:]
+    result = [dict(zip(columns, line)) for line in lines]
+    return result
 
-    Args:
-        csvs (tuple): Tuple with dataframes that will be converted.
-        output_path (Path): Path where to save the json files.
-        prefix (str, optional): Name to prepend to files. If nothing is given it will use `file_`. Defaults to None.
-    """
-    i = 0
-    while i < len(csvs):
-        file_name = f"{prefix}_{i}.json"
-        output = output_path.joinpath(file_name)
-        logger.info("Saving file: %s", output)
-        data: pd.DataFrame = csvs[i]
-        data.to_json(path_or_buf=output, orient="records", indent=4)
-        i += 1
+
+def write_json_data(data: list[dict[str, str]], output_path: Path):
+    """Escreve uma lista de dicionarios em formato json em disco"""
+    with output_path.open(mode="w") as file:
+        file.write("[\n")
+        for d in data[:-1]:
+            write_dictionary(d, file, append_comma=True)
+        write_dictionary(d, file, append_comma=False)
+        file.write("]\n")
+
+
+def write_dictionary(data: dict, io, append_comma: bool = True):
+    """Escreve um dicionario no disco."""
+    io.write("\t{\n")
+    items = tuple(data.items())
+    for line in items:
+        write_line(line, io, True)
+    write_line(line, io, False)
+    io.write("\t}")
+    if append_comma:
+        io.write(",\n")
+    else:
+        io.write("\n")
+
+
+def write_line(line: tuple, io, append_comma: bool = True):
+    """Escreve uma linha do dicionario no disco."""
+    key, value = line
+    if append_comma:
+        io.write(f"\t\t{key}: {value},\n")
+    else:
+        io.write(f"\t\t{key}: {value}\n")
